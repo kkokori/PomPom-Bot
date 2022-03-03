@@ -99,6 +99,6 @@ async def on_message(message):
 is_prod = os.environ.get('IS_HEROKU', None)
 
 if is_prod:
-    client.run(os.environget('TOKEN'))
+    client.run(os.environ.get('TOKEN'))
 else:
     client.run(os.getenv('TOKEN'))
