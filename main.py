@@ -96,4 +96,9 @@ async def on_message(message):
                 await message.channel.send("Invalid command. `!help` for command list.")
 
 
-client.run(os.getenv('TOKEN'))
+is_prod = os.environ.get('IS_HEROKU', None)
+
+if is_prod:
+    client.run(os.environget('TOKEN'))
+else:
+    client.run(os.getenv('TOKEN'))
