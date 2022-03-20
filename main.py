@@ -68,7 +68,7 @@ def get_file_lines(fname):
     return lines 
 
 async def remind(remindIn, reminderMsg, replyMsg, mentionReply, channel):
-    def remove_date(date):        
+    async def remove_date(date):        
         lines = get_file_lines("reminders.txt")
         if is_prod:
             ghtoken = os.environ.get('GITTOKEN')
@@ -119,7 +119,7 @@ async def remind(remindIn, reminderMsg, replyMsg, mentionReply, channel):
    
     await asyncio.sleep(secondsToRemind)
     await channel.send(reminderMsg, reference=replyMsg, mention_author=mentionReply)
-    remove_date(remindIn.isoformat())
+    await remove_date(remindIn.isoformat())
 
 async def parse_reminder_list():
     lines = get_file_lines("reminders.txt")
