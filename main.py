@@ -126,7 +126,7 @@ async def parse_reminder_list():
 
     firstFlag = True
     for line in lines:
-        if (len(line) <= 1)
+        if (len(line) <= 1):
             continue
         # first line: date, reminderMsg p1
         if (firstFlag):
