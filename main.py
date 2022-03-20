@@ -53,7 +53,9 @@ def to_seconds(num, t):
 async def remind(remindIn, reminderMsg, replyMsg, mentionReply, channel, lines):
     def remove_date(date):
         if is_prod:
-            header = {'Authorization': 'token ' + os.environ.get('GITTOKEN')}
+            ghtoken = os.environ.get('GITTOKEN')
+            print(ghtoken)
+            header = {'Authorization': 'token ' + ghtoken}
             url = "https://api.github.com/repos/kkokori/PomPom-Bot/contents/reminders.txt"
             repo = requests.get(url)
             sha = repo.json()['sha']
