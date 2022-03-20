@@ -1,10 +1,18 @@
 import asyncio
+import base64
 from datetime import datetime, timedelta
 import discord
-import os
-from threading import Timer
 from dotenv import load_dotenv
-load_dotenv()
+import os
+import requests
+from threading import Timer
+
+# command list
+commands = {
+    "!help": "list commands",
+    "!events": "list events",
+    "!add": "<date> <time> <location> <description>",
+}
 
 # various valid time calls
 seconds = ['s', 'sec', 'secs', 'second', 'seconds']
@@ -17,18 +25,13 @@ years = ['y', 'yr', 'yrs', 'year', 'years']
 client = discord.Client()
 debug = False
 
-commands = {
-    "!help": "list commands",
-    "!events": "list events",
-    "!add": "<date> <time> <location> <description>",
-}
-
+load_dotenv()
 
 @client.event
 async def on_ready():
+    # read in the old reminders and store/run them
     await parse_reminder_list()
     print('Logged in at {0.user}'.format(client))
-
 
 # convert date values to seconds
 def to_seconds(num, t):
@@ -74,33 +77,61 @@ async def remind(remindIn, reminderMsg, replyMsg, mentionReply, channel):
     await channel.send(reminderMsg, reference=replyMsg, mention_author=mentionReply)
     remove_date(remindIn.isoformat())
 
-
 async def parse_reminder_list():
-    with open("reminders.txt", "r") as file:
-        lines = file.readlines()
-        file.close()
+    print("hi")
+    if is_prod:
+        # reminders.txt url only
+        url = "https://api.github.com/repos/kkokori/PomPom-Bot/contents/reminders.txt"
+        repo = requests.get(url)
+        sha = repo.json()['sha'] # get latest commit
 
-    firstFlag = True
-    for line in lines:
-        # first line: date, reminderMsg p1
-        if (firstFlag):
-            firstFlag = False
-            lineInfo = line.split("`~")
-            remindDate = datetime.fromisoformat(lineInfo[0].strip())
-            reminderMsg = lineInfo[1]
-        else: # second line: remindMsg p2, replyMsg, mentionReply, origMsg
-            firstFlag = True
-            lineInfo = line.split("`~")
-            reminderMsg += lineInfo[0]
-            mentionReply = lineInfo[2]
-            channel = await client.fetch_channel(lineInfo[3])             
-            replyMsg = await channel.fetch_message(lineInfo[1])
+        
+        str = ""
+        with open("reminders.txt", "r") as file:
+            lines = file.readlines()
+        for line in lines:
+            str += line
 
-            # reminder time already passed
-            if remindDate < datetime.now(): 
-                reminderMsg = "Uh oh. We might have missed a reminder for " + remindDate.strftime("%B %d, %Y at %I:%M %p") + ".\n" + lineInfo[0]
+        message_bytes = str.encode("ascii")
+        content = base64.b64encode(message_bytes)
 
-            asyncio.create_task(remind(remindDate, reminderMsg, replyMsg, mentionReply, channel))
+        payload = {
+            "message": "update reminders.txt",
+            "committer": {
+                "name": "Rebekah Salsburg",
+                "email": "rebekahsalsburg@gmail.com"
+            },
+            "content": content.decode(),
+            "sha": sha
+        }
+
+     #   response = requests.put(url, headers=header, data=json.dumps(payload))  
+    else:
+        with open("reminders.txt", "r") as file:
+            lines = file.readlines()
+            file.close()
+
+        firstFlag = True
+        for line in lines:
+            # first line: date, reminderMsg p1
+            if (firstFlag):
+                firstFlag = False
+                lineInfo = line.split("`~")
+                remindDate = datetime.fromisoformat(lineInfo[0].strip())
+                reminderMsg = lineInfo[1]
+            else: # second line: remindMsg p2, replyMsg, mentionReply, origMsg
+                firstFlag = True
+                lineInfo = line.split("`~")
+                reminderMsg += lineInfo[0]
+                mentionReply = lineInfo[2]
+                channel = await client.fetch_channel(lineInfo[3])             
+                replyMsg = await channel.fetch_message(lineInfo[1])
+
+                # reminder time already passed
+                if remindDate < datetime.now(): 
+                    reminderMsg = "Uh oh. We might have missed a reminder for " + remindDate.strftime("%B %d, %Y at %I:%M %p") + ".\n" + lineInfo[0]
+
+                asyncio.create_task(remind(remindDate, reminderMsg, replyMsg, mentionReply, channel))
     return
 
 
@@ -196,12 +227,14 @@ async def on_message(message):
                 await channel.send("Invalid command. `!help` for command list.")
 
 
-is_prod = os.environ.get('IS_HEROKU', None)
+print("hello")
 
 # handle reading token when run locally vs on heroku
+is_prod = os.environ.get('IS_HEROKU', None)
 if is_prod:
     client.run(os.environ.get('TOKEN'))
+    ghToken = os.environ.get('GITTOKEN')
 else:
     client.run(os.getenv('TOKEN'))
-
-# read in the old reminders and store/run them
+    print("none")
+    ghToken = os.getenv('GITTOKEN')
