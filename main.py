@@ -83,7 +83,7 @@ async def remind(remindIn, reminderMsg, replyMsg, mentionReply, channel):
                     if flag:
                         flag = False
                     elif not line.startswith(date):
-                        str += "\n" + line
+                        str += line
                     else:
                         flag = True
 
@@ -189,7 +189,7 @@ async def new_remind(message, pts):
     channel = message.channel
   
     # save the whole reminder
-    def saveReminder():
+    async def saveReminder():
         print("saving: " + str(remindDate))
         # remind date, remind note/msg, message to reply to, ping on/off, original message
         writeStr = remindDate.isoformat() + "`~" + str(reminderMsg) + "`~" + str(replyMsg.id) + "`~" + str(mentionReply) + "`~" + str(channel.id) + "\n"
@@ -218,7 +218,7 @@ async def new_remind(message, pts):
             file.write(writeStr)
             file.close()
         return
-    saveReminder()
+    await saveReminder()
 
     # set the remind
     await remind(remindDate, reminderMsg, replyMsg, mentionReply, channel)
