@@ -69,9 +69,9 @@ def get_file_lines(fname):
 
 async def remind(remindIn, reminderMsg, replyMsg, mentionReply, channel):
     def remove_date(date):
-        print("removing " + date)
         lines = get_file_lines("reminders.txt")
         if is_prod:
+            print("removing " + date)
             ghtoken = os.environ.get('GITTOKEN')
             header = {'Authorization': 'token ' + ghtoken}
             url = "https://api.github.com/repos/kkokori/PomPom-Bot/contents/reminders.txt"
