@@ -5,6 +5,7 @@ import discord
 from dotenv import load_dotenv
 import json
 import os
+import pytz
 import requests
 from threading import Timer
 
@@ -62,14 +63,14 @@ def get_file_lines(fname):
         lines = msg.split('\n')
     else:
         with open(fname, "r") as file:
-            lines = file.readlines
+            lines = file.readlines()
             file.close()
     return lines 
 
 async def remind(remindIn, reminderMsg, replyMsg, mentionReply, channel):
     def remove_date(date):
-        print(date)
-        lines = get_file_lines("requirements.txt")
+        print("removing " + date)
+        lines = get_file_lines("reminders.txt")
         if is_prod:
             ghtoken = os.environ.get('GITTOKEN')
             header = {'Authorization': 'token ' + ghtoken}
@@ -83,14 +84,14 @@ async def remind(remindIn, reminderMsg, replyMsg, mentionReply, channel):
                     if flag:
                         flag = False
                     elif not line.startswith(date):
-                        str += line
+                        str += "\n" + line
                     else:
                         flag = True
 
             message_bytes = str.encode("ascii")
             content = base64.b64encode(message_bytes)
             payload = {
-                "message": "update reminders.txt",
+                "message": "remove from reminders.txt",
                 "committer": {
                     "name": "Rebekah Salsburg",
                     "email": "rebekahsalsburg@gmail.com"
@@ -103,7 +104,6 @@ async def remind(remindIn, reminderMsg, replyMsg, mentionReply, channel):
             with open("reminders.txt", "w") as file:
                 flag = False
                 for line in lines:
-                    print(line.startswith(date))
                     if flag:
                         flag = False
                     elif not line.startswith(date):
@@ -113,8 +113,7 @@ async def remind(remindIn, reminderMsg, replyMsg, mentionReply, channel):
                 file.close()
             return
 
-    print(remindIn)
-    delta = remindIn - datetime.now()
+    delta = remindIn - datetime.utcnow()
     secondsToRemind = delta.total_seconds()
    
     await asyncio.sleep(secondsToRemind)
@@ -122,17 +121,15 @@ async def remind(remindIn, reminderMsg, replyMsg, mentionReply, channel):
     remove_date(remindIn.isoformat())
 
 async def parse_reminder_list():
-    lines = get_file_lines("requirements.txt")
+    lines = get_file_lines("reminders.txt")
 
     firstFlag = True
     for line in lines:
-        if line == "":
-            return
         # first line: date, reminderMsg p1
         if (firstFlag):
             firstFlag = False
             lineInfo = line.split("`~")
-            remindDate = datetime.fromisoformat(lineInfo[0].strip())
+            remindDate = datetime.fromisoformat(lineInfo[0])
             reminderMsg = lineInfo[1]
         else: # second line: remindMsg p2, replyMsg, mentionReply, origMsg
             firstFlag = True
@@ -143,13 +140,13 @@ async def parse_reminder_list():
             replyMsg = await channel.fetch_message(lineInfo[1])
 
             # reminder time already passed
-            if remindDate < datetime.now(): 
-                reminderMsg = "Uh oh. We might have missed a reminder for " + remindDate.strftime("%B %d, %Y at %I:%M %p") + ".\n" + lineInfo[0]
-
+            if remindDate < datetime.utcnow():
+                localDate = remindDate.replace(tzinfo=pytz.utc).astimezone(
+                    datetime.now().astimezone().tzinfo)
+                reminderMsg = "Uh oh. We might have missed a reminder for " + localDate.strftime("%B %d, %Y at %I:%M %p") + ".\n" + lineInfo[0]
+            
             asyncio.create_task(remind(remindDate, reminderMsg, replyMsg, mentionReply, channel))
     return
-
-
 
 async def new_remind(message, pts):
     # parse command
@@ -163,10 +160,10 @@ async def new_remind(message, pts):
         await message.channel.send("Invalid time format. Valid formats are:\n```seconds: " + str(seconds[0:]) + "\nminutes: " + str(minutes[0:]) + "\nhours: " + str(hours[0:]) + "\ndays: " + str(days[0:]) + "\nmonths: " + str(months[0:]) + "\nyears: " + str(years[0:]) + "```")
         return
 
-    
+    print(message.created_at)
     # get the seconds difference and find the date of reminding
     secondsTilRemind = to_seconds(int(num), denom)
-    remindDate = datetime.now() + timedelta(seconds=secondsTilRemind)
+    remindDate = datetime.utcnow() + timedelta(seconds=secondsTilRemind)
 
     mentionUser = message.author.mention
     reminderMsg = "Reminding you, " + mentionUser + "."
@@ -190,6 +187,7 @@ async def new_remind(message, pts):
   
     # save the whole reminder
     def saveReminder():
+        print("saving: " + str(remindDate))
         # remind date, remind note/msg, message to reply to, ping on/off, original message
         writeStr = remindDate.isoformat() + "`~" + str(reminderMsg) + "`~" + str(replyMsg.id) + "`~" + str(mentionReply) + "`~" + str(channel.id) + "\n"
         
@@ -202,7 +200,7 @@ async def new_remind(message, pts):
             message_bytes = writeStr.encode("ascii")
             content = base64.b64encode(message_bytes)
             payload = {
-                "message": "update reminders.txt",
+                "message": "save to reminders.txt",
                 "committer": {
                     "name": "Rebekah Salsburg",
                     "email": "rebekahsalsburg@gmail.com"
@@ -257,7 +255,6 @@ async def on_message(message):
 
             await channel.send("<:bojji:" + str(id) + ">")
         case _:
-            print(message.content)
             if cmd.startswith('!'):
                 await channel.send("Invalid command. `!help` for command list.")
 
