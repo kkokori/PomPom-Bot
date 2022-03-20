@@ -27,6 +27,7 @@ client = discord.Client()
 debug = False
 
 load_dotenv()
+is_prod = os.environ.get('IS_HEROKU', None)
 
 @client.event
 async def on_ready():
@@ -49,12 +50,28 @@ def to_seconds(num, t):
     elif t in years:
         return num * 31556952
 
+def get_file_lines(fname):
+    if is_prod:
+        # reminders.txt url only
+        url = "https://api.github.com/repos/kkokori/PomPom-Bot/contents/reminders.txt"
+        repo = requests.get(url)
+        content = repo.json()['content']
+        str = base64.b64decode(content)
+        msg = str.decode("ascii").strip()
 
-async def remind(remindIn, reminderMsg, replyMsg, mentionReply, channel, lines):
+        lines = msg.split('\n')
+    else:
+        with open(fname, "r") as file:
+            lines = file.readlines
+            file.close()
+    return lines 
+
+async def remind(remindIn, reminderMsg, replyMsg, mentionReply, channel):
     def remove_date(date):
+        print(date)
+        lines = get_file_lines("requirements.txt")
         if is_prod:
             ghtoken = os.environ.get('GITTOKEN')
-            print(ghtoken)
             header = {'Authorization': 'token ' + ghtoken}
             url = "https://api.github.com/repos/kkokori/PomPom-Bot/contents/reminders.txt"
             repo = requests.get(url)
@@ -105,24 +122,12 @@ async def remind(remindIn, reminderMsg, replyMsg, mentionReply, channel, lines):
     remove_date(remindIn.isoformat())
 
 async def parse_reminder_list():
-    if is_prod:
-        # reminders.txt url only
-        url = "https://api.github.com/repos/kkokori/PomPom-Bot/contents/reminders.txt"
-        repo = requests.get(url)
-        content = repo.json()['content']
-        str = base64.b64decode(content)
-        msg = str.decode("ascii").strip()
-
-        print(msg)
-        lines = msg.split('\n')
-        print(lines)
-    else:
-        with open("reminders.txt", "r") as file:
-            lines = file.readlines()
-            file.close()
+    lines = get_file_lines("requirements.txt")
 
     firstFlag = True
     for line in lines:
+        if line == "":
+            return
         # first line: date, reminderMsg p1
         if (firstFlag):
             firstFlag = False
@@ -141,7 +146,7 @@ async def parse_reminder_list():
             if remindDate < datetime.now(): 
                 reminderMsg = "Uh oh. We might have missed a reminder for " + remindDate.strftime("%B %d, %Y at %I:%M %p") + ".\n" + lineInfo[0]
 
-            asyncio.create_task(remind(remindDate, reminderMsg, replyMsg, mentionReply, channel, lines))
+            asyncio.create_task(remind(remindDate, reminderMsg, replyMsg, mentionReply, channel))
     return
 
 
@@ -258,7 +263,6 @@ async def on_message(message):
 
 
 # handle reading token when run locally vs on heroku
-is_prod = os.environ.get('IS_HEROKU', None)
 if is_prod:
     client.run(os.environ.get('TOKEN'))
 else:
