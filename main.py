@@ -55,7 +55,7 @@ def get_file_lines(fname):
     if is_prod:
         # reminders.txt url only
         url = "https://api.github.com/repos/kkokori/PomPom-Bot/contents/reminders.txt"
-        repo = requests.get(url)
+        repo = requests.get(url, {"ref": "reminders"})
         content = repo.json()['content']
         str = base64.b64decode(content)
         msg = str.decode("ascii").strip()
@@ -75,7 +75,7 @@ async def remind(remindIn, reminderMsg, replyMsg, mentionReply, channel):
             ghtoken = os.environ.get('GITTOKEN')
             header = {'Authorization': 'token ' + ghtoken}
             url = "https://api.github.com/repos/kkokori/PomPom-Bot/contents/reminders.txt"
-            repo = requests.get(url)
+            repo = requests.get(url, {"ref": "reminders"})
             sha = repo.json()['sha']
 
             str = ""
@@ -96,6 +96,7 @@ async def remind(remindIn, reminderMsg, replyMsg, mentionReply, channel):
                     "name": "Rebekah Salsburg",
                     "email": "rebekahsalsburg@gmail.com"
                 },
+                "branch": "reminders",
                 "content": content.decode(),
                 "sha": sha
             }
@@ -194,7 +195,7 @@ async def new_remind(message, pts):
         if is_prod:
             header = {'Authorization': 'token ' + os.environ.get('GITTOKEN')}
             url = "https://api.github.com/repos/kkokori/PomPom-Bot/contents/reminders.txt"
-            repo = requests.get(url)
+            repo = requests.get(url, {"ref": "reminders"})
             sha = repo.json()['sha']
 
             message_bytes = writeStr.encode("ascii")
@@ -205,6 +206,7 @@ async def new_remind(message, pts):
                     "name": "Rebekah Salsburg",
                     "email": "rebekahsalsburg@gmail.com"
                 },
+                "branch": "reminders",
                 "content": content.decode(),
                 "sha": sha
             }
