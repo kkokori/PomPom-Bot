@@ -68,7 +68,7 @@ def get_file_lines(fname):
     return lines 
 
 async def remind(remindIn, reminderMsg, replyMsg, mentionReply, channel):
-    def remove_date(date):
+    def remove_date(date):        
         lines = get_file_lines("reminders.txt")
         if is_prod:
             ghtoken = os.environ.get('GITTOKEN')
@@ -126,6 +126,8 @@ async def parse_reminder_list():
 
     firstFlag = True
     for line in lines:
+        if (len(line) <= 1)
+            continue
         # first line: date, reminderMsg p1
         if (firstFlag):
             firstFlag = False
