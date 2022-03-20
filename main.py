@@ -48,6 +48,7 @@ def to_seconds(num, t):
 
 async def remind(remindIn, reminderMsg, replyMsg, mentionReply, channel):
     def remove_date(date):
+        print(date)
         with open("reminders.txt", "r") as file:
             lines = file.readlines()
             file.close()
@@ -55,16 +56,17 @@ async def remind(remindIn, reminderMsg, replyMsg, mentionReply, channel):
         with open("reminders.txt", "w") as file:
             flag = False
             for line in lines:
+                print(line.startswith(date))
                 if flag:
                     flag = False
-                elif not line.startswith(str(date)):
+                elif not line.startswith(date):
                     file.write(line)
                 else:
                     flag = True
             file.close()
         return
 
-
+    print(remindIn)
     delta = remindIn - datetime.now()
     secondsToRemind = delta.total_seconds()
    
@@ -78,33 +80,28 @@ async def parse_reminder_list():
         lines = file.readlines()
         file.close()
 
-    with open("reminders.txt", "w") as file:
-        firstFlag = True
-        for line in lines:
-            file.write(line)
-            # first line: date, reminderMsg p1
-            if (firstFlag):
-                lineInfo = line.split("`~")
-                remindDate = datetime.fromisoformat(lineInfo[0].strip())
-                reminderMsg = lineInfo[1]
-                firstFlag = False
-            else: # second line: remindMsg p2, replyMsg, mentionReply, origMsg
-                lineInfo = line.split("`~")
-                reminderMsg += lineInfo[0]
-                mentionReply = lineInfo[2]
-                print(lineInfo[3])
-                channel = await client.fetch_channel(lineInfo[3])             
-                replyMsg = await channel.fetch_message(lineInfo[1])
+    firstFlag = True
+    for line in lines:
+        # first line: date, reminderMsg p1
+        if (firstFlag):
+            firstFlag = False
+            lineInfo = line.split("`~")
+            remindDate = datetime.fromisoformat(lineInfo[0].strip())
+            reminderMsg = lineInfo[1]
+        else: # second line: remindMsg p2, replyMsg, mentionReply, origMsg
+            firstFlag = True
+            lineInfo = line.split("`~")
+            reminderMsg += lineInfo[0]
+            mentionReply = lineInfo[2]
+            channel = await client.fetch_channel(lineInfo[3])             
+            replyMsg = await channel.fetch_message(lineInfo[1])
 
-                # reminder time already passed
-                if remindDate < datetime.now(): 
-                    reminderMsg = "Uh oh. We might have missed a reminder for " + remindDate.strftime("%B %d, %Y at %I:%M %p") + ".\n" + lineInfo[0]
-                
-                await remind(remindDate, reminderMsg, replyMsg, mentionReply, channel)
-                firstFlag = True
+            # reminder time already passed
+            if remindDate < datetime.now(): 
+                reminderMsg = "Uh oh. We might have missed a reminder for " + remindDate.strftime("%B %d, %Y at %I:%M %p") + ".\n" + lineInfo[0]
 
-        file.close()
-        return
+            asyncio.create_task(remind(remindDate, reminderMsg, replyMsg, mentionReply, channel))
+    return
 
 
 
@@ -156,8 +153,7 @@ async def new_remind(message, pts):
     saveReminder()
 
     # set the remind
-    await remind(remindDate, reminderMsg,
-           replyMsg, mentionReply, channel)
+    await remind(remindDate, reminderMsg, replyMsg, mentionReply, channel)
 
 
 @client.event
