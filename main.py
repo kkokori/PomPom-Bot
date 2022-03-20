@@ -3,6 +3,7 @@ import base64
 from datetime import datetime, timedelta
 import discord
 from dotenv import load_dotenv
+import json
 import os
 import requests
 from threading import Timer
@@ -49,25 +50,49 @@ def to_seconds(num, t):
         return num * 31556952
 
 
-async def remind(remindIn, reminderMsg, replyMsg, mentionReply, channel):
+async def remind(remindIn, reminderMsg, replyMsg, mentionReply, channel, lines):
     def remove_date(date):
-        print(date)
-        with open("reminders.txt", "r") as file:
-            lines = file.readlines()
-            file.close()
+        if is_prod:
+            header = {'Authorization': 'token ' + os.environ.get('GITTOKEN')}
+            url = "https://api.github.com/repos/kkokori/PomPom-Bot/contents/reminders.txt"
+            repo = requests.get(url)
+            sha = repo.json()['sha']
 
-        with open("reminders.txt", "w") as file:
+            str = ""
             flag = False
             for line in lines:
-                print(line.startswith(date))
-                if flag:
-                    flag = False
-                elif not line.startswith(date):
-                    file.write(line)
-                else:
-                    flag = True
-            file.close()
-        return
+                    if flag:
+                        flag = False
+                    elif not line.startswith(date):
+                        str += line
+                    else:
+                        flag = True
+
+            message_bytes = str.encode("ascii")
+            content = base64.b64encode(message_bytes)
+            payload = {
+                "message": "update reminders.txt",
+                "committer": {
+                    "name": "Rebekah Salsburg",
+                    "email": "rebekahsalsburg@gmail.com"
+                },
+                "content": content.decode(),
+                "sha": sha
+            }
+            requests.put(url, headers=header, data=json.dumps(payload))
+        else:
+            with open("reminders.txt", "w") as file:
+                flag = False
+                for line in lines:
+                    print(line.startswith(date))
+                    if flag:
+                        flag = False
+                    elif not line.startswith(date):
+                        file.write(line)
+                    else:
+                        flag = True
+                file.close()
+            return
 
     print(remindIn)
     delta = remindIn - datetime.now()
@@ -78,60 +103,43 @@ async def remind(remindIn, reminderMsg, replyMsg, mentionReply, channel):
     remove_date(remindIn.isoformat())
 
 async def parse_reminder_list():
-    print("hi")
     if is_prod:
         # reminders.txt url only
         url = "https://api.github.com/repos/kkokori/PomPom-Bot/contents/reminders.txt"
         repo = requests.get(url)
-        sha = repo.json()['sha'] # get latest commit
+        content = repo.json()['content']
+        str = base64.b64decode(content)
+        msg = str.decode("ascii").strip()
 
-        
-        str = ""
-        with open("reminders.txt", "r") as file:
-            lines = file.readlines()
-        for line in lines:
-            str += line
-
-        message_bytes = str.encode("ascii")
-        content = base64.b64encode(message_bytes)
-
-        payload = {
-            "message": "update reminders.txt",
-            "committer": {
-                "name": "Rebekah Salsburg",
-                "email": "rebekahsalsburg@gmail.com"
-            },
-            "content": content.decode(),
-            "sha": sha
-        }
-
-     #   response = requests.put(url, headers=header, data=json.dumps(payload))  
+        print(msg)
+        lines = msg.split('\n')
+        print(lines)
     else:
         with open("reminders.txt", "r") as file:
             lines = file.readlines()
             file.close()
 
-        firstFlag = True
-        for line in lines:
-            # first line: date, reminderMsg p1
-            if (firstFlag):
-                firstFlag = False
-                lineInfo = line.split("`~")
-                remindDate = datetime.fromisoformat(lineInfo[0].strip())
-                reminderMsg = lineInfo[1]
-            else: # second line: remindMsg p2, replyMsg, mentionReply, origMsg
-                firstFlag = True
-                lineInfo = line.split("`~")
-                reminderMsg += lineInfo[0]
-                mentionReply = lineInfo[2]
-                channel = await client.fetch_channel(lineInfo[3])             
-                replyMsg = await channel.fetch_message(lineInfo[1])
+    firstFlag = True
+    for line in lines:
+        # first line: date, reminderMsg p1
+        if (firstFlag):
+            firstFlag = False
+            lineInfo = line.split("`~")
+            remindDate = datetime.fromisoformat(lineInfo[0].strip())
+            reminderMsg = lineInfo[1]
+        else: # second line: remindMsg p2, replyMsg, mentionReply, origMsg
+            firstFlag = True
+            lineInfo = line.split("`~")
+            reminderMsg += lineInfo[0]
+            mentionReply = lineInfo[2]
+            channel = await client.fetch_channel(lineInfo[3])             
+            replyMsg = await channel.fetch_message(lineInfo[1])
 
-                # reminder time already passed
-                if remindDate < datetime.now(): 
-                    reminderMsg = "Uh oh. We might have missed a reminder for " + remindDate.strftime("%B %d, %Y at %I:%M %p") + ".\n" + lineInfo[0]
+            # reminder time already passed
+            if remindDate < datetime.now(): 
+                reminderMsg = "Uh oh. We might have missed a reminder for " + remindDate.strftime("%B %d, %Y at %I:%M %p") + ".\n" + lineInfo[0]
 
-                asyncio.create_task(remind(remindDate, reminderMsg, replyMsg, mentionReply, channel))
+            asyncio.create_task(remind(remindDate, reminderMsg, replyMsg, mentionReply, channel, lines))
     return
 
 
@@ -176,10 +184,30 @@ async def new_remind(message, pts):
     # save the whole reminder
     def saveReminder():
         # remind date, remind note/msg, message to reply to, ping on/off, original message
-        file = open("reminders.txt", "a")
-        file.write(remindDate.isoformat() + "`~"+ str(reminderMsg) + "`~" +
-                   str(replyMsg.id) + "`~" + str(mentionReply) + "`~" + str(channel.id) + "\n")
-        file.close()
+        writeStr = remindDate.isoformat() + "`~" + str(reminderMsg) + "`~" + str(replyMsg.id) + "`~" + str(mentionReply) + "`~" + str(channel.id) + "\n"
+        
+        if is_prod:
+            header = {'Authorization': 'token ' + os.environ.get('GITTOKEN')}
+            url = "https://api.github.com/repos/kkokori/PomPom-Bot/contents/reminders.txt"
+            repo = requests.get(url)
+            sha = repo.json()['sha']
+
+            message_bytes = writeStr.encode("ascii")
+            content = base64.b64encode(message_bytes)
+            payload = {
+                "message": "update reminders.txt",
+                "committer": {
+                    "name": "Rebekah Salsburg",
+                    "email": "rebekahsalsburg@gmail.com"
+                },
+                "content": content.decode(),
+                "sha": sha
+            }
+            requests.put(url, headers=header, data=json.dumps(payload))
+        else:
+            file = open("reminders.txt", "a")
+            file.write(writeStr)
+            file.close()
         return
     saveReminder()
 
@@ -227,14 +255,10 @@ async def on_message(message):
                 await channel.send("Invalid command. `!help` for command list.")
 
 
-print("hello")
-
 # handle reading token when run locally vs on heroku
 is_prod = os.environ.get('IS_HEROKU', None)
 if is_prod:
     client.run(os.environ.get('TOKEN'))
-    ghToken = os.environ.get('GITTOKEN')
 else:
     client.run(os.getenv('TOKEN'))
-    print("none")
-    ghToken = os.getenv('GITTOKEN')
+    # ghToken = os.getenv('GITTOKEN')
